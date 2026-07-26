@@ -3,169 +3,161 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>⚡ BIFROST METROPOLIS - PHASE 3 ⚡</title>
+    <title>BIFROST METROPOLIS</title>
     <style>
-        * { margin: 0; padding: 0; }
-        body { overflow: hidden; background: #000; font-family: monospace; color: #fff; }
-        #ui { position: absolute; top: 20px; left: 20px; z-index: 100;
-            background: rgba(0,0,0,0.6); padding: 15px 25px; border: 1px solid #ff69b4;
-            border-radius: 8px; text-shadow: 0 0 10px #ff00ff; }
-        #ui h1 { font-size: 16px; letter-spacing: 2px; color: #ff69b4; }
-        #click-hint { position: absolute; bottom: 100px; left: 50%; transform: translateX(-50%);
-            color: #fff; background: rgba(255,0,255,0.15); padding: 12px 40px;
-            border: 1px solid rgba(255,0,255,0.4); border-radius: 30px;
-            font-size: 16px; letter-spacing: 2px; animation: pulse 2.5s infinite;
-            backdrop-filter: blur(5px); pointer-events: none; }
-        @keyframes pulse { 0% { opacity: 0.4; } 50% { opacity: 1; box-shadow: 0 0 60px #f0f; } 100% { opacity: 0.4; } }
+        body { margin:0; padding:0; overflow:hidden; background:#000; font-family:monospace; }
+        #ui { position:absolute; top:10px; left:10px; z-index:100; color:#fff;
+            background:rgba(0,0,0,0.5); padding:10px 15px; font-size:12px; }
     </style>
     <script type="importmap">
         {"imports": {"three": "https://cdn.jsdelivr.net/npm/three@0.164.0/build/three.module.js",
                      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.164.0/examples/jsm/"}}
     </script>
 </head>
-<body>
-    <div id="ui"><h1>⚡ BIFROST UPGRADE</h1>
-        <div id="stats">FPS: <span id="fps">60</span> · <span id="title">500 Buildings</span> · <span id="mode">WEBGPU</span></div>
-    </div>
-    <div id="click-hint">⬆ CLICK TO FALL BETWEEN WORLDS ⬆</div>
-    
-    <script type="module">
-        import * as THREE from 'three';
-        import { WebGPURenderer } from 'three/webgpu';
-        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-        import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
-        import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
-        import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
-        
-        // Init WebGPU
-        const renderer = new WebGPURenderer({ antialias: true });
+<body><div id="ui">PHASE 3 | FPS: <span id="fps">60</span></div>
+<script type="module">
+    import * as THREE from 'three';
+    import { WebGPURenderer } from 'three/webgpu';
+    import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+    // WebGL fallback for debugging
+    let renderer;
+    try {
+        renderer = new WebGPURenderer({ antialias:true });
         await renderer.init();
+    } catch(e) {
+        console.log('WebGPU failed, using WebGL:', e.message);
+        renderer = new THREE.WebGLRenderer({ antialias:true });
+    }
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(1);
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.2;
+    document.body.appendChild(renderer.domElement);
+
+    const scene = new THREE.Scene();
+
+    // DARKER BG
+    scene.background = new THREE.Color(0x1a1a2e);
+    scene.fog = new THREE.Fog(0x0a0a1a, 10, 100);
+
+    const camera = new THREE.PerspectiveCamera(60, window.innerWidth/window.innerHeight, 0.1, 200);
+    camera.position.set(0, 10, 30);
+
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.minDistance = 5;
+
+    // LIGHTS
+    const ambient = new THREE.AmbientLight(0x444466, 0.4);
+    scene.add(ambient);
+    const dirLight = new THREE.DirectionalLight(0xffddaa, 1.5);
+    dirLight.position.set(10, 40, 10);
+    scene.add(dirLight);
+    const fill = new THREE.DirectionalLight(0x6666aa, 0.7);
+    fill.position.set(-10, 10, -10);
+    scene.add(fill);
+
+    // BUILDINGS - VISIBLE RED-BROWN
+    const bldgCount = 200;
+    const geo = new THREE.ConeGeometry(0.7, 1.5, 3);
+    const mat = new THREE.MeshStandardMaterial({ color:0xcc7722, metalness:0.2, roughness:0.7, 
+        emissive:0x553311, emissiveIntensity:0.3 });
+    const buildings = new THREE.InstancedMesh(geo, mat, bldgCount);
+    const dummy = new THREE.Object3D();
+    for (let i=0; i<bldgCount; i++) {
+        const x = (Math.random()-0.5)*40;
+        const z = (Math.random()-0.5)*40;
+        if (x*x+z*z < 25) continue; // Skip center
+        dummy.position.set(x, 0.75, z);
+        const s = 0.5 + Math.random()*1;
+        dummy.scale.set(s, s*0.8, s);
+        dummy.rotation.z = Math.random()*Math.PI;
+        dummy.updateMatrix();
+        buildings.setMatrixAt(i, dummy.matrix);
+    }
+    buildings.instanceMatrix.needsUpdate = true;
+    scene.add(buildings);
+
+    // RAIN
+    const rainCount = 50000;
+    const rainPos = new Float32Array(rainCount*3);
+    const rainVel = new Float32Array(rainCount*3);
+    for (let i=0; i<rainCount; i++) {
+        rainPos[i*3] = (Math.random()-0.5)*40;
+        rainPos[i*3+1] = Math.random()*30+5;
+        rainPos[i*3+2] = (Math.random()-0.5)*40;
+        rainVel[i*3] = (Math.random()-0.5)*0.001;
+        rainVel[i*3+1] = -0.003-Math.random()*0.002;
+        rainVel[i*3+2] = (Math.random()-0.5)*0.001;
+    }
+    const rainGeo = new THREE.BufferGeometry();
+    rainGeo.setAttribute('position', new THREE.BufferAttribute(rainPos, 3));
+    const rainMat = new THREE.PointsMaterial({
+        color:0x00ffff, size:0.2, transparent:true, opacity:0.6,
+        blending:THREE.AdditiveBlending, depthWrite:false
+    });
+    const rain = new THREE.Points(rainGeo, rainMat);
+    scene.add(rain);
+
+    let falling=false, progress=0;
+    const startPos=camera.position.clone(), endPos=new THREE.Vector3(0,25,40);
+
+    renderer.domElement.addEventListener('click', ()=>{
+        if(!falling) falling=true;
+    });
+
+    const clock = new THREE.Clock();
+    let frames=0, time=0;
+
+    function animate() {
+        requestAnimationFrame(animate);
+        const d = Math.min(clock.getDelta(), 0.05);
+        time += d;
+        frames++;
+
+        if(time % 0.5 < d) document.getElementById('fps').textContent = frames;
+        frames = 0;
+
+        // Pulse buildings
+        const p = 0.9 + Math.sin(time*0.4)*0.1;
+        for(let i=0; i<bldgCount; i++) {
+            const m = new THREE.Matrix4();
+            buildings.getMatrixAt(i, m);
+            m.scale(p, p, p);
+            buildings.setMatrixAt(i, m);
+        }
+        buildings.instanceMatrix.needsUpdate = true;
+
+        // Update rain
+        for(let i=0; i<rainCount; i++) {
+            rainPos[i*3] += rainVel[i*3];
+            rainPos[i*3+1] += rainVel[i*3+1];
+            rainPos[i*3+2] += rainVel[i*3+2];
+            if(rainPos[i*3+1] < 0) {
+                rainPos[i*3+1] = 25 + Math.random()*10;
+                rainPos[i*3] = (Math.random()-0.5)*40;
+                rainPos[i*3+2] = (Math.random()-0.5)*40;
+            }
+        }
+        rain.geometry.attributes.position.needsUpdate = true;
+
+        // Falling
+        if(falling) {
+            progress += d*0.3;
+            if(progress >= 1) { falling=false; }
+            const t = 1-Math.pow(Math.cos(progress*Math.PI),3);
+            camera.position.lerpVectors(startPos, endPos, t);
+        }
+
+        controls.update();
+        renderer.render(scene, camera);
+    }
+
+    animate();
+    window.addEventListener('resize', ()=>{
+        camera.aspect = window.innerWidth/window.innerHeight;
+        camera.updateProjectionMatrix();
         renderer.setSize(window.innerWidth, window.innerHeight);
-        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-        renderer.toneMapping = THREE.ACESFilmicToneMapping;
-        document.body.appendChild(renderer.domElement);
-        
-        const scene = new THREE.Scene();
-        scene.background = new THREE.Color(0x050510);
-        scene.fog = new THREE.FogExp2(0x050510, 0.0015);
-        
-        const camera = new THREE.PerspectiveCamera(60, window.innerWidth/window.innerHeight, 0.1, 500);
-        camera.position.set(35, 20, 50);
-        
-        const controls = new OrbitControls(camera, renderer.domElement);
-        controls.enableDamping = true;
-        
-        // Post-processing
-        const composer = new EffectComposer(renderer);
-        composer.addPass(new RenderPass(scene, camera));
-        const bloom = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 1.2, 0.5, 0.2);
-        composer.addPass(bloom);
-        
-        // City (Instanced)
-        const buildingCount = 500;
-        const geo = new THREE.ConeGeometry(0.8, 1.8, 4);
-        const mat = new THREE.MeshStandardMaterial({ color: 0xffaa88, emissive: 0x442266, metalness: 0.15, roughness: 0.5 });
-        const city = new THREE.InstancedMesh(geo, mat, buildingCount);
-        const dummy = new THREE.Object3D();
-        for (let i = 0; i < buildingCount; i++) {
-            const r = 0.5 + Math.random();
-            const x = Math.cos(i * 0.3) * r * 35;
-            const z = Math.sin(i * 0.3) * r * 35;
-            dummy.position.set(x, 0, z);
-            dummy.scale.set(0.6 + Math.random() * 1.2, 0.7 + Math.random() * 0.6, 0.6 + Math.random() * 1.2);
-            dummy.rotation.z = Math.random() * Math.PI;
-            dummy.updateMatrix();
-            city.setMatrixAt(i, dummy.matrix);
-        }
-        scene.add(city);
-        document.getElementById('title').textContent = buildingCount.toLocaleString() + ' Buildings';
-        
-        // Rain (100k points for speed)
-        const rainCount = 100000;
-        const rainPos = new Float32Array(rainCount * 3);
-        for (let i = 0; i < rainCount; i++) {
-            rainPos[i*3] = (Math.random() - 0.5) * 50;
-            rainPos[i*3+1] = Math.random() * 30 + 10;
-            rainPos[i*3+2] = (Math.random() - 0.5) * 50;
-        }
-        const rainGeo = new THREE.BufferGeometry();
-        rainGeo.setAttribute('position', new THREE.BufferAttribute(rainPos, 3));
-        const rainMat = new THREE.PointsMaterial({ color: 0x00ff88, size: 0.3, transparent: true, opacity: 0.5, blending: THREE.AdditiveBlending });
-        const rain = new THREE.Points(rainGeo, rainMat);
-        scene.add(rain);
-        
-        // Lights
-        scene.add(new THREE.AmbientLight(0x333355, 0.5));
-        const sun = new THREE.DirectionalLight(0xffeeaa, 1.8);
-        sun.position.set(25, 40, 15);
-        scene.add(sun);
-        
-        // Interaction
-        let falling = false, progress = 0;
-        const start = camera.position.clone(), target = new THREE.Vector3(0, 30, 40);
-        
-        renderer.domElement.addEventListener('click', () => {
-            if (!falling) { falling = true; document.getElementById('click-hint').style.opacity = '0'; }
-        });
-        
-        // Loop
-        const clock = new THREE.Clock();
-        let frames = 0, time = 0;
-        
-        function animate() {
-            requestAnimationFrame(animate);
-            const delta = Math.min(clock.getDelta(), 0.05);
-            time += delta;
-            
-            frames++;
-            if (time % 0.5 < delta) document.getElementById('fps').textContent = frames;
-            frames = 0;
-            
-            // Pulse buildings
-            const pulse = 0.85 + Math.sin(time * 0.5) * 0.15;
-            for (let i = 0; i < buildingCount; i++) {
-                const phase = i * 0.02;
-                const p = pulse * (0.9 + Math.sin(time * 0.3 + phase) * 0.1);
-                const m = new THREE.Matrix4();
-                city.getMatrixAt(i, m);
-                m.scale(p, p, p);
-                city.setMatrixAt(i, m);
-            }
-            city.instanceMatrix.needsUpdate = true;
-            
-            // Animate rain
-            for (let i = 0; i < rainCount; i++) {
-                rainPos[i*3+1] -= 0.02;
-                if (rainPos[i*3+1] < 0) {
-                    rainPos[i*3+1] = 25 + Math.random() * 10;
-                    rainPos[i*3] = (Math.random() - 0.5) * 40;
-                    rainPos[i*3+2] = (Math.random() - 0.5) * 40;
-                }
-            }
-            rain.geometry.attributes.position.needsUpdate = true;
-            
-            // Falling camera
-            if (falling) {
-                progress += delta * 0.4;
-                if (progress >= 1) { falling = false; document.getElementById('click-hint').style.opacity = '1'; }
-                const t = 1 - Math.pow(Math.cos(progress * Math.PI), 3);
-                camera.position.lerpVectors(start, target, t);
-            }
-            
-            controls.update();
-            composer.render();
-        }
-        
-        animate();
-        
-        window.addEventListener('resize', () => {
-            camera.aspect = window.innerWidth / window.innerHeight;
-            camera.updateProjectionMatrix();
-            renderer.setSize(window.innerWidth, window.innerHeight);
-            composer.setSize(window.innerWidth, window.innerHeight);
-        });
-        
-        console.log('⚡ BIFROST UPGRADE ACTIVE');
-    </script>
-</body>
+    });
+</script></body>
 </html>
