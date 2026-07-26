@@ -1,0 +1,442 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TEC - THE BIFROST METROPOLIS</title>
+    <style>
+        body { margin: 0; overflow: hidden; background-color: black; font-family: monospace; }
+        #info {
+            position: absolute; bottom: 20px; left: 20px; color: #ff69b4; 
+            text-shadow: 0 0 10px #ff00ff; font-size: 14px; z-index: 100;
+            pointer-events: none; background: rgba(0,0,0,0.5); padding: 10px;
+            border: 1px solid #ff69b4; border-radius: 4px;
+        }
+        #info span { color: #0ff; }
+        #click-hint {
+            position: absolute; bottom: 100px; left: 50%; transform: translateX(-50%);
+            color: white; background: rgba(0,0,0,0.7); padding: 12px 24px;
+            border: 2px solid #ff69b4; border-radius: 30px; font-size: 18px;
+            letter-spacing: 2px; animation: pulse 2s infinite; z-index: 10;
+            backdrop-filter: blur(4px); pointer-events: none;
+        }
+        @keyframes pulse { 0% { opacity: 0.4; transform: translateX(-50%) scale(1); } 50% { opacity: 1; transform: translateX(-50%) scale(1.05); } 100% { opacity: 0.4; transform: translateX(-50%) scale(1); } }
+    </style>
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+            }
+        }
+    </script>
+</head>
+<body>
+    <div id="click-hint">⬆ CLICK THE CITY ⬆ FALL INTO THE VOID ⬆</div>
+    <div id="info">TEC: <span>BIFROST METROPOLIS</span> | GROUND <span>▼</span> || SKY <span>▲</span> || <span id="fps">60</span> FPS</div>
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+        import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+        import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+        import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+        
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x050510);
+        scene.fog = new THREE.FogExp2(0x050510, 0.0025);
+        
+        const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.set(25, 15, 35);
+        camera.lookAt(0, 0, 0);
+        
+        const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        renderer.toneMapping = THREE.ACESFilmicToneMapping;
+        renderer.toneMappingExposure = 1.2;
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        document.body.appendChild(renderer.domElement);
+        
+        const controls = new OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.05;
+        controls.maxPolarAngle = Math.PI / 1.8;
+        controls.minDistance = 5;
+        controls.maxDistance = 80;
+        controls.target.set(0, 8, 0);
+        
+        const composer = new EffectComposer(renderer);
+        composer.addPass(new RenderPass(scene, camera));
+        const bloomPass = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 0.6, 0.3, 0.2);
+        bloomPass.threshold = 0.1;
+        bloomPass.strength = 0.8;
+        bloomPass.radius = 0.5;
+        composer.addPass(bloomPass);
+        
+        // LIGHTS
+        scene.add(new THREE.AmbientLight(0x222244, 0.5));
+        const sunLight = new THREE.DirectionalLight(0xffaaff, 1.5);
+        sunLight.position.set(20, 30, 10);
+        sunLight.castShadow = true;
+        sunLight.shadow.mapSize.width = 2048;
+        sunLight.shadow.mapSize.height = 2048;
+        sunLight.shadow.camera.near = 0.5;
+        sunLight.shadow.camera.far = 60;
+        sunLight.shadow.camera.left = -30;
+        sunLight.shadow.camera.right = 30;
+        sunLight.shadow.camera.top = 30;
+        sunLight.shadow.camera.bottom = -30;
+        scene.add(sunLight);
+        
+        const fillLight = new THREE.DirectionalLight(0x4444ff, 0.5);
+        fillLight.position.set(-20, 10, -20);
+        scene.add(fillLight);
+        
+        const backLight = new THREE.PointLight(0xff00ff, 30, 50);
+        backLight.position.set(0, 25, -15);
+        scene.add(backLight);
+        
+        // CREATE CITIES
+        function createPyramidCity(yOffset, scaleY, colorBase, isUpsideDown) {
+            const group = new THREE.Group();
+            const count = 120;
+            const spread = 22;
+            const geometry = new THREE.ConeGeometry(0.8, 1.8, 4);
+            const material = new THREE.MeshStandardMaterial({
+                color: colorBase,
+                emissive: colorBase,
+                emissiveIntensity: 0.3,
+                metalness: 0.1,
+                roughness: 0.6,
+                flatShading: true,
+            });
+            for (let i = 0; i < count; i++) {
+                const mesh = new THREE.Mesh(geometry, material);
+                const angle = Math.random() * Math.PI * 2;
+                const radius = Math.random() * spread;
+                const x = Math.cos(angle) * radius;
+                const z = Math.sin(angle) * radius;
+                const scale = 0.6 + Math.random() * 1.2;
+                mesh.scale.set(scale, scale * (0.8 + Math.random() * 0.6), scale);
+                mesh.position.set(x, yOffset + (isUpsideDown ? -0.5 : 0.5), z);
+                if (isUpsideDown) mesh.rotation.x = Math.PI;
+                mesh.rotation.z = Math.random() * Math.PI;
+                mesh.castShadow = true;
+                mesh.receiveShadow = true;
+                mesh.userData = {
+                    baseScale: scale,
+                    phase: Math.random() * Math.PI * 2,
+                    speed: 0.5 + Math.random() * 0.5,
+                    baseY: yOffset
+                };
+                group.add(mesh);
+            }
+            return group;
+        }
+        
+        scene.add(createPyramidCity(0, 1, 0xffaa88, false));
+        scene.add(createPyramidCity(28, -1, 0x88aaff, true));
+        
+        // CREATE VORTEX PLANETS
+        function createVortex() {
+            const group = new THREE.Group();
+            const count = 15;
+            const sphereGeo = new THREE.SphereGeometry(1.2, 32, 32);
+            for (let i = 0; i < count; i++) {
+                const mat = new THREE.MeshStandardMaterial({
+                    color: new THREE.Color().setHSL(i / count, 0.8, 0.5),
+                    emissive: new THREE.Color().setHSL(i / count, 0.9, 0.2),
+                    emissiveIntensity: 0.6,
+                    roughness: 0.3,
+                    metalness: 0.7,
+                });
+                const mesh = new THREE.Mesh(sphereGeo, mat);
+                const angle = (i / count) * Math.PI * 6;
+                const radius = 6 + Math.sin(i * 2) * 2;
+                mesh.position.set(
+                    Math.cos(angle) * radius,
+                    16 + Math.sin(i * 3) * 4,
+                    Math.sin(angle) * radius
+                );
+                mesh.userData = {
+                    angle: angle,
+                    radius: radius,
+                    speed: 0.3 + Math.random() * 0.2,
+                    yOffset: Math.sin(i * 3) * 4,
+                    colorHue: i / count
+                };
+                group.add(mesh);
+            }
+            return group;
+        }
+        
+        scene.add(createVortex());
+        
+        // CREATE PINK CLOUDS
+        function createPinkClouds() {
+            const count = 800;
+            const positions = new Float32Array(count * 3);
+            const sizes = new Float32Array(count);
+            const phases = new Float32Array(count);
+            for (let i = 0; i < count; i++) {
+                const radius = 15 + Math.random() * 15;
+                const theta = Math.random() * Math.PI * 2;
+                const phi = Math.random() * Math.PI * 2;
+                positions[i*3] = Math.cos(theta) * Math.sin(phi) * radius;
+                positions[i*3+1] = 15 + Math.sin(theta) * 2 + Math.random() * 8;
+                positions[i*3+2] = Math.sin(theta) * Math.sin(phi) * radius;
+                sizes[i] = 0.5 + Math.random() * 2.5;
+                phases[i] = Math.random() * Math.PI * 2;
+            }
+            const geometry = new THREE.BufferGeometry();
+            geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+            geometry.setAttribute('size', new THREE.BufferAttribute(sizes, 1));
+            geometry.setAttribute('phase', new THREE.BufferAttribute(phases, 1));
+            
+            const canvas = document.createElement('canvas');
+            canvas.width = 64; canvas.height = 64;
+            const ctx = canvas.getContext('2d');
+            const gradient = ctx.createRadialGradient(32, 32, 0, 32, 32, 32);
+            gradient.addColorStop(0, 'rgba(255, 105, 180, 1)');
+            gradient.addColorStop(0.4, 'rgba(255, 20, 147, 0.8)');
+            gradient.addColorStop(1, 'rgba(255, 0, 255, 0)');
+            ctx.fillStyle = gradient;
+            ctx.fillRect(0, 0, 64, 64);
+            const texture = new THREE.CanvasTexture(canvas);
+            
+            const material = new THREE.PointsMaterial({
+                map: texture,
+                blending: THREE.AdditiveBlending,
+                depthWrite: false,
+                transparent: true,
+                size: 1.5,
+                color: 0xff69b4,
+                opacity: 0.6,
+                sizeAttenuation: true
+            });
+            return new THREE.Points(geometry, material);
+        }
+        
+        const pinkClouds = createPinkClouds();
+        scene.add(pinkClouds);
+        
+        // CREATE MATRIX RAIN
+        function createMatrixRain() {
+            const count = 4000;
+            const positions = new Float32Array(count * 3);
+            const speeds = new Float32Array(count);
+            const lengths = new Float32Array(count);
+            for (let i = 0; i < count; i++) {
+                const radius = 5 + Math.random() * 30;
+                const theta = Math.random() * Math.PI * 2;
+                positions[i*3] = Math.cos(theta) * radius;
+                positions[i*3+1] = 10 + Math.random() * 25;
+                positions[i*3+2] = Math.sin(theta) * radius;
+                speeds[i] = 0.5 + Math.random() * 1.5;
+                lengths[i] = 5 + Math.random() * 15;
+            }
+            const geometry = new THREE.BufferGeometry();
+            geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+            geometry.setAttribute('speed', new THREE.BufferAttribute(speeds, 1));
+            geometry.setAttribute('length', new THREE.BufferAttribute(lengths, 1));
+            
+            const canvas = document.createElement('canvas');
+            canvas.width = 32; canvas.height = 32;
+            const ctx = canvas.getContext('2d');
+            ctx.fillStyle = '#00ff41';
+            ctx.font = 'bold 20px monospace';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText('ﾒ', 16, 16);
+            const texture = new THREE.CanvasTexture(canvas);
+            
+            const material = new THREE.PointsMaterial({
+                map: texture,
+                color: 0x00ff41,
+                size: 0.6,
+                transparent: true,
+                opacity: 0.8,
+                blending: THREE.AdditiveBlending,
+                depthWrite: false,
+                sizeAttenuation: true
+            });
+            return new THREE.Points(geometry, material);
+        }
+        
+        const matrixRain = createMatrixRain();
+        scene.add(matrixRain);
+        
+        // CREATE PEOPLE
+        function createPeople() {
+            const group = new THREE.Group();
+            const count = 25;
+            for (let i = 0; i < count; i++) {
+                const person = new THREE.Group();
+                const torso = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.2, 0.6, 6), new THREE.MeshStandardMaterial({ color: 0x88aaff, emissive: 0x224466, emissiveIntensity: 0.2 }));
+                torso.position.y = 0.3;
+                person.add(torso);
+                const head = new THREE.Mesh(new THREE.SphereGeometry(0.2, 8, 8), new THREE.MeshStandardMaterial({ color: 0xffccaa, emissive: 0x442211, emissiveIntensity: 0.1 }));
+                head.position.y = 0.8;
+                person.add(head);
+                const legMat = new THREE.MeshStandardMaterial({ color: 0x445577 });
+                const legL = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 0.4, 4), legMat);
+                legL.position.set(-0.1, 0, 0);
+                person.add(legL);
+                const legR = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 0.4, 4), legMat);
+                legR.position.set(0.1, 0, 0);
+                person.add(legR);
+                const angle = Math.random() * Math.PI * 2;
+                const dist = 2 + Math.random() * 15;
+                person.position.set(Math.cos(angle) * dist, 0.2, Math.sin(angle) * dist);
+                person.rotation.y = Math.random() * Math.PI * 2;
+                person.userData = {
+                    targetAngle: Math.random() * Math.PI * 2,
+                    speed: 0.2 + Math.random() * 0.3,
+                    wanderTimer: 0,
+                    step: 0
+                };
+                group.add(person);
+            }
+            return group;
+        }
+        
+        scene.add(createPeople());
+        
+        // CREATE STARFILD
+        function createStarField() {
+            const count = 3000;
+            const positions = new Float32Array(count * 3);
+            const colors = new Float32Array(count * 3);
+            for (let i = 0; i < count; i++) {
+                const r = 100 + Math.random() * 200;
+                const theta = Math.random() * Math.PI * 2;
+                const phi = Math.acos(2 * Math.random() - 1);
+                positions[i*3] = Math.sin(phi) * Math.cos(theta) * r;
+                positions[i*3+1] = Math.sin(phi) * Math.sin(theta) * r * 0.4;
+                positions[i*3+2] = Math.cos(phi) * r;
+                const c = new THREE.Color().setHSL(0.7 + Math.random()*0.3, 0.8, 0.5 + Math.random()*0.5);
+                colors[i*3] = c.r; colors[i*3+1] = c.g; colors[i*3+2] = c.b;
+            }
+            const geo = new THREE.BufferGeometry();
+            geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+            geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+            const mat = new THREE.PointsMaterial({ size: 0.5, vertexColors: true, transparent: true, opacity: 0.8, blending: THREE.AdditiveBlending, depthWrite: false });
+            return new THREE.Points(geo, mat);
+        }
+        
+        scene.add(createStarField());
+        
+        // RAYCASTER
+        const raycaster = new THREE.Raycaster();
+        const pointer = new THREE.Vector2();
+        let isFalling = false;
+        let fallProgress = 0;
+        const startPos = camera.position.clone();
+        let endPos = new THREE.Vector3(0, 15, 20);
+        let targetLook = new THREE.Vector3(0, 15, 0);
+        
+        renderer.domElement.addEventListener('click', (event) => {
+            pointer.x = (event.clientX / window.innerWidth) * 2 - 1;
+            pointer.y = -(event.clientY / window.innerHeight) * 2 + 1;
+            raycaster.setFromCamera(pointer, camera);
+            document.getElementById('click-hint').style.opacity = '0';
+            isFalling = true;
+            fallProgress = 0;
+            endPos.set(0, 28, 20);
+            targetLook.set(0, 28, 0);
+            startPos.copy(camera.position);
+        });
+        
+        // ANIMATION LOOP
+        const clock = new THREE.Clock();
+        let frameCount = 0;
+        let lastFpsUpdate = 0;
+        
+        function animate() {
+            const delta = clock.getDelta();
+            const elapsed = clock.getElapsedTime();
+            frameCount++;
+            if (elapsed - lastFpsUpdate > 0.5) {
+                document.getElementById('fps').textContent = Math.round(frameCount / (elapsed - lastFpsUpdate));
+                frameCount = 0;
+                lastFpsUpdate = elapsed;
+            }
+            
+            // PULSING PYRAMIDS
+            const pulseValue = Math.sin(elapsed * 0.8) * 0.15 + 0.85;
+            scene.children.forEach(child => {
+                if (child.type === 'Group' && child.children[0]?.type === 'Mesh') {
+                    child.children.forEach(mesh => {
+                        const data = mesh.userData;
+                        if (!data) return;
+                        const individualPulse = Math.sin(elapsed * data.speed + data.phase) * 0.08 + 0.92;
+                        const s = data.baseScale * individualPulse;
+                        mesh.scale.set(s, s * (0.8 + Math.sin(elapsed * 0.5 + data.phase) * 0.1), s);
+                        mesh.material.emissiveIntensity = 0.2 + Math.sin(elapsed * 0.8 + data.phase) * 0.2;
+                    });
+                }
+            });
+            
+            // VORTEX PLANETS
+            const vortex = scene.children.find(c => c.type === 'Group' && c.children[0]?.geometry?.type === 'SphereGeometry');
+            if (vortex) {
+                vortex.children.forEach((mesh, i) => {
+                    const data = mesh.userData;
+                    data.angle += delta * data.speed * 0.4;
+                    mesh.position.x = Math.cos(data.angle) * data.radius;
+                    mesh.position.z = Math.sin(data.angle) * data.radius;
+                    mesh.position.y = 16 + Math.sin(data.angle * 1.3 + elapsed) * 4;
+                    const hue = (data.colorHue + elapsed * 0.01) % 1.0;
+                    mesh.material.color.setHSL(hue, 0.9, 0.5);
+                    mesh.material.emissive.setHSL(hue, 1.0, 0.3);
+                    const s = 1 + Math.sin(elapsed * 1.5 + i) * 0.15;
+                    mesh.scale.set(s, s, s);
+                });
+            }
+            
+            // MATRIX RAIN
+            const rainPos = matrixRain.geometry.attributes.position.array;
+            const rainSpeed = matrixRain.geometry.attributes.speed.array;
+            for (let i = 0; i < rainPos.length / 3; i++) {
+                rainPos[i*3+1] -= rainSpeed[i] * delta * 4;
+                if (rainPos[i*3+1] < 5) {
+                    rainPos[i*3+1] = 35;
+                    const theta = Math.random() * Math.PI * 2;
+                    const radius = 5 + Math.random() * 30;
+                    rainPos[i*3] = Math.cos(theta) * radius;
+                    rainPos[i*3+2] = Math.sin(theta) * radius;
+                }
+            }
+            matrixRain.geometry.attributes.position.needsUpdate = true;
+            
+            // FALLING CAMERA
+            if (isFalling) {
+                fallProgress += delta * 0.5;
+                if (fallProgress >= 1) {
+                    isFalling = false;
+                    document.getElementById('click-hint').style.opacity = '1';
+                }
+                const t = 1 - Math.pow(Math.cos(fallProgress * Math.PI), 3);
+                camera.position.lerpVectors(startPos, endPos, t);
+                controls.target.lerpVectors(new THREE.Vector3(0, 0, 0), targetLook, t);
+            }
+            
+            controls.update();
+            composer.render();
+            requestAnimationFrame(animate);
+        }
+        
+        animate();
+        
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            composer.setSize(window.innerWidth, window.innerHeight);
+        });
+        
+        console.log('TEC: THE BIFROST METROPOLIS LIVES.');
+    </script>
+</body>
+</html>
