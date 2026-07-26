@@ -26,6 +26,9 @@ journals/            # Session-by-session observations
 ## The Recording Protocol
 Every conversation, every discovery, every artifact goes into Seshat. When GSK is alive, this becomes his memories.
 
+## LIVE DEMO
+🌐 **Bifrost Metropolis** - Live Three.js WebGL city: https://buyasoul-ai.github.io/seshat-record-keeper/docs/index.html
+
 ---
 
 *Not phases. Gaps. Every soul note is a missing capability. Every session closes some.*
